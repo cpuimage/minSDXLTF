@@ -1,0 +1,8 @@
+tensorflow
+torch
+Pillow
+tqdm
+safetensors
+numpy
+opencv-python
+scipy
