@@ -23,7 +23,7 @@ from .diffusion_model import DiffusionXLModel
 from .image_decoder import ImageDecoder
 from .image_encoder import ImageEncoder
 from .long_prompt_weighting import get_weighted_text_embeddings
-from .text_encoder_laion import TextEncoderLaion
+from .text_encoder_laion import TextEncoderLaion, TextEncoderLaionProj
 from .text_encoder_openai import TextEncoderOpenAi
 
 MAX_PROMPT_LENGTH = 77
@@ -42,6 +42,7 @@ class StableDiffusionXLBase:
         # lazy initialize the component models and the tokenizer
         self._image_encoder = None
         self._text_encoder_laion = None
+        self._text_encoder_laion_proj = None
         self._text_encoder_openai = None
         self._diffusion_model = None
         self._image_decoder = None
@@ -146,7 +147,8 @@ class StableDiffusionXLBase:
                                                          pad_token_id=49407)
         context_laion, add_text_embeds = get_weighted_text_embeddings(self.tokenizer, self.text_encoder_laion, prompt,
                                                                       model_max_length=MAX_PROMPT_LENGTH,
-                                                                      pad_token_id=0)
+                                                                      pad_token_id=0,
+                                                                      text_encoder_pool=self.text_encoder_laion_proj)
         return np.concatenate([context_openai, context_laion], axis=-1), add_text_embeds
 
     def gaussian_blur(self, image, radius=3, h_axis=1, v_axis=2):
@@ -537,6 +539,18 @@ class StableDiffusionXL(StableDiffusionXLBase):
             if self.jit_compile:
                 self._text_encoder_laion.compile(jit_compile=True)
         return self._text_encoder_laion
+
+    @property
+    def text_encoder_laion_proj(self):
+        """text_encoder returns the text encoder with pretrained weights.
+        Can be overriden for tasks like textual inversion where the text encoder
+        needs to be modified.
+        """
+        if self._text_encoder_laion_proj is None:
+            self._text_encoder_laion_proj = TextEncoderLaionProj()
+            if self.jit_compile:
+                self._text_encoder_laion_proj.compile(jit_compile=True)
+        return self._text_encoder_laion_proj
 
     @property
     def diffusion_model(self):

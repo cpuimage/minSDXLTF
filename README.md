@@ -64,11 +64,11 @@ Image.fromarray(img[0]).save("out.jpg")
     - [x] Load Pytorch Weights 
     - [x] Image To Image
     - [x] Inpainting
+    - [x] Long Prompt Weighting
     - [ ] Lora
         - [ ] Merge
         - [ ] Switch
     - [ ] Refiner
-    - [ ] Long Prompt Weighting
     - [ ] Outpainting
     - [ ] Upscaler
     - [ ] Highres Fix

@@ -21,7 +21,7 @@ class DiffusionXLModel(tf.keras.Model):
     def __init__(self, img_height=1024, img_width=1024, name=None, ckpt_path=None, lora_dict=None):
         sample = tf.keras.layers.Input((img_height // 8, img_width // 8, 4))
         timestep = tf.keras.layers.Input(())
-        text_emb = tf.keras.layers.Input((77, 2048))
+        text_emb = tf.keras.layers.Input((None, 2048))
         text_embeds = tf.keras.layers.Input((1280,))
         time_ids = tf.keras.layers.Input((6,))
         # 1. time

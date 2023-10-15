@@ -174,6 +174,7 @@ def get_unweighted_text_embeddings_laion(
         text_input: np.array,
         chunk_length: int,
         no_boseos_middle: Optional[bool] = True,
+        text_encoder_pool=None,
 ):
     """
     When the length of tokens is a multiple of the capacity of the text encoder,
@@ -182,36 +183,40 @@ def get_unweighted_text_embeddings_laion(
     max_embeddings_multiples = (text_input.shape[1] - 2) // (chunk_length - 2)
     if max_embeddings_multiples > 1:
         text_embeddings = []
-        text_embeddings_pools = []
+        final_text_embeddings = []
         for i in range(max_embeddings_multiples):
             # extract the i-th chunk
             text_input_chunk = text_input[:, i * (chunk_length - 2): (i + 1) * (chunk_length - 2) + 2].copy()
-
             # cover the head and the tail by the starting and the ending tokens
             text_input_chunk[:, 0] = text_input[0, 0]
             text_input_chunk[:, -1] = text_input[0, -1]
-
-            text_embedding, text_embedding_pool = text_encoder.predict_on_batch(
+            text_embedding, final_text_embedding = text_encoder.predict_on_batch(
                 [text_input_chunk, np.asarray([list(range(text_input_chunk.shape[1]))], dtype=np.int32)])
-
             if no_boseos_middle:
                 if i == 0:
                     # discard the ending token
                     text_embedding = text_embedding[:, :-1]
+                    final_text_embedding = final_text_embedding[:, :-1]
                 elif i == max_embeddings_multiples - 1:
                     # discard the starting token
                     text_embedding = text_embedding[:, 1:]
+                    final_text_embedding = final_text_embedding[:, 1:]
                 else:
                     # discard both starting and ending tokens
                     text_embedding = text_embedding[:, 1:-1]
-            text_embeddings_pools.append(text_embedding_pool)
+                    final_text_embedding = final_text_embedding[:, 1:-1]
+            final_text_embeddings.append(final_text_embedding)
             text_embeddings.append(text_embedding)
         text_embeddings = np.concatenate(text_embeddings, axis=1)
-        text_embeddings_pools = sum(text_embeddings_pools) / len(text_embeddings_pools)
+        final_text_embeddings = np.concatenate(final_text_embeddings, axis=1)
     else:
-        text_embeddings, text_embeddings_pools = text_encoder.predict_on_batch(
+        text_embeddings, final_text_embeddings = text_encoder.predict_on_batch(
             [text_input, np.asarray([list(range(text_input.shape[1]))], dtype=np.int32)])
-    return text_embeddings, text_embeddings_pools
+    indices = np.column_stack((np.arange(text_input.shape[0]), np.argmax(text_input, axis=-1)))
+    pooled_output = final_text_embeddings[indices[:, 0], indices[:, 1]]
+    if text_encoder_pool is not None:
+        pooled_output = text_encoder_pool.predict_on_batch(pooled_output)
+    return text_embeddings, pooled_output
 
 
 def get_unweighted_text_embeddings_openai(
@@ -267,6 +272,7 @@ def get_weighted_text_embeddings(
         skip_weighting: Optional[bool] = False,
         model_max_length=77,
         pad_token_id=49407,
+        text_encoder_pool=None,
 ):
     r"""
     Prompts can be assigned with local weights using brackets. For example,
@@ -343,6 +349,7 @@ def get_weighted_text_embeddings(
             prompt_tokens,
             model_max_length,
             no_boseos_middle=no_boseos_middle,
+            text_encoder_pool=text_encoder_pool,
         )
     prompt_weights = np.array(prompt_weights, dtype=text_embeddings.dtype)
     if (not skip_parsing) and (not skip_weighting):
