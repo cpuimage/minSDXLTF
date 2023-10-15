@@ -13,91 +13,10 @@
 # limitations under the License.
 import os
 
-import numpy as np
 import tensorflow as tf
 
 from stable_diffusion_xl.ckpt_loader import load_weights_from_file
-
-
-class CLIPEmbedding(tf.keras.layers.Layer):
-    def __init__(self, input_dim=49408, output_dim=768, max_length=77, **kwargs):
-        super().__init__(**kwargs)
-        self.token_embedding = tf.keras.layers.Embedding(input_dim, output_dim, name="token_embedding")
-        self.position_embedding = tf.keras.layers.Embedding(max_length, output_dim, name="position_embedding")
-
-    def call(self, inputs):
-        tokens, positions = inputs
-        tokens = self.token_embedding(tokens)
-        positions = self.position_embedding(positions)
-        return tokens + positions
-
-
-class CLIPEncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, embed_dim, num_heads, activation=None, **kwargs):
-        super().__init__(**kwargs)
-        self.layer_norm1 = tf.keras.layers.LayerNormalization(epsilon=1e-5, name="layer_norm1")
-        self.clip_attn = CLIPAttention(embed_dim, num_heads, causal=True, name="self_attn")
-        self.layer_norm2 = tf.keras.layers.LayerNormalization(epsilon=1e-5, name="layer_norm2")
-        self.fc1 = tf.keras.layers.Dense(embed_dim * 4, name="mlp.fc1")
-        self.fc2 = tf.keras.layers.Dense(embed_dim, name="mlp.fc2")
-        self.activation = activation
-
-    def call(self, inputs):
-        residual = inputs
-        x = self.layer_norm1(inputs)
-        x = self.clip_attn(x)
-        x = residual + x
-        residual = x
-        x = self.layer_norm2(x)
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.fc2(x)
-        return x + residual
-
-
-class CLIPAttention(tf.keras.layers.Layer):
-    def __init__(self, embed_dim=768, num_heads=12, causal=True, **kwargs):
-        super().__init__(**kwargs)
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.causal = causal
-        self.head_dim = self.embed_dim // self.num_heads
-        self.scale = self.head_dim ** -0.5
-        self.q_proj = tf.keras.layers.Dense(self.embed_dim, name="q_proj")
-        self.k_proj = tf.keras.layers.Dense(self.embed_dim, name="k_proj")
-        self.v_proj = tf.keras.layers.Dense(self.embed_dim, name="v_proj")
-        self.out_proj = tf.keras.layers.Dense(self.embed_dim, name="out_proj")
-
-    def reshape_states(self, x, sequence_length, batch_size):
-        x = tf.reshape(
-            x, (batch_size, sequence_length, self.num_heads, self.head_dim))
-        return tf.transpose(x, (0, 2, 1, 3))  # bs, heads, sequence_length, head_dim
-
-    def call(self, inputs, attention_mask=None):
-        if attention_mask is None and self.causal:
-            length = inputs.get_shape().as_list()[1]
-            attention_mask = tf.cast(np.triu(np.ones((1, 1, length, length), dtype="float32") * -np.inf, k=1),
-                                     dtype=self.compute_dtype)
-        _, tgt_len, embed_dim = inputs.shape
-        query_states = self.q_proj(inputs) * self.scale
-        key_states = self.reshape_states(self.k_proj(inputs), tgt_len, -1)
-        value_states = self.reshape_states(self.v_proj(inputs), tgt_len, -1)
-        proj_shape = (-1, tgt_len, self.head_dim)
-        query_states = self.reshape_states(query_states, tgt_len, -1)
-        query_states = tf.reshape(query_states, proj_shape)
-        key_states = tf.reshape(key_states, proj_shape)
-        src_len = tgt_len
-        value_states = tf.reshape(value_states, proj_shape)
-        attn_weights = query_states @ tf.transpose(key_states, (0, 2, 1))
-        attn_weights = tf.reshape(attn_weights, (-1, self.num_heads, tgt_len, src_len))
-        attn_weights = attn_weights + attention_mask
-        attn_weights = tf.reshape(attn_weights, (-1, tgt_len, src_len))
-        attn_weights = tf.nn.softmax(attn_weights)
-        attn_output = attn_weights @ value_states
-        attn_output = tf.reshape(attn_output, (-1, self.num_heads, tgt_len, self.head_dim))
-        attn_output = tf.transpose(attn_output, (0, 2, 1, 3))
-        attn_output = tf.reshape(attn_output, (-1, tgt_len, embed_dim))
-        return self.out_proj(attn_output)
+from stable_diffusion_xl.layers import CLIPEmbedding, CLIPEncoderLayer
 
 
 def quick_gelu(x):

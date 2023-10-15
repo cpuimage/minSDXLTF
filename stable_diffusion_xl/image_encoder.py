@@ -16,7 +16,7 @@ import os
 import tensorflow as tf
 
 from .ckpt_loader import load_weights_from_file, CKPT_MAPPING, VAE_KEY_MAPPING
-from .layers import GroupNormalization, AttentionBlock, PaddedConv2D, ResnetBlock
+from .layers import GroupNormalization, VaeAttentionBlock, VaeResnetBlock, DownSampler
 
 
 class ImageEncoder(tf.keras.Sequential):
@@ -26,25 +26,27 @@ class ImageEncoder(tf.keras.Sequential):
         super().__init__(
             [
                 tf.keras.layers.Input((None, None, 3)),
-                PaddedConv2D(128, 3, padding=1),
-                ResnetBlock(128),
-                ResnetBlock(128),
-                PaddedConv2D(128, 3, padding=((0, 1), (0, 1)), strides=2),
-                ResnetBlock(256),
-                ResnetBlock(256),
-                PaddedConv2D(256, 3, padding=((0, 1), (0, 1)), strides=2),
-                ResnetBlock(512),
-                ResnetBlock(512),
-                PaddedConv2D(512, 3, padding=((0, 1), (0, 1)), strides=2),
-                ResnetBlock(512),
-                ResnetBlock(512),
-                ResnetBlock(512),
-                AttentionBlock(512),
-                ResnetBlock(512),
+                tf.keras.layers.ZeroPadding2D(padding=1),
+                tf.keras.layers.Conv2D(128, 3, strides=1),
+                VaeResnetBlock(128),
+                VaeResnetBlock(128),
+                DownSampler(128, padding=((0, 1), (0, 1))),
+                VaeResnetBlock(256),
+                VaeResnetBlock(256),
+                DownSampler(256, padding=((0, 1), (0, 1))),
+                VaeResnetBlock(512),
+                VaeResnetBlock(512),
+                DownSampler(512, padding=((0, 1), (0, 1))),
+                VaeResnetBlock(512),
+                VaeResnetBlock(512),
+                VaeResnetBlock(512),
+                VaeAttentionBlock(512),
+                VaeResnetBlock(512),
                 GroupNormalization(epsilon=1e-5),
                 tf.keras.layers.Activation("swish"),
-                PaddedConv2D(8, 3, padding=1),
-                PaddedConv2D(8, 1),
+                tf.keras.layers.ZeroPadding2D(padding=1),
+                tf.keras.layers.Conv2D(8, 3, strides=1),
+                tf.keras.layers.Conv2D(8, 1, strides=1),
                 tf.keras.layers.Lambda(lambda x: tf.split(x, num_or_size_splits=2, axis=-1)[0] * 0.13025),
             ])
         origin = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/vae_1_0/diffusion_pytorch_model.fp16.safetensors"
