@@ -27,9 +27,12 @@ from PIL import Image
 
 from stable_diffusion_xl.stable_diffusion_xl import StableDiffusionXL
 
-# for load civitai model:
-civitai_model = "/path/to/civitai_model.safetensors"
-model = StableDiffusionXL(img_height=1024, img_width=1024, jit_compile=True, civitai_model=civitai_model)
+# load ckpt from local path
+model = StableDiffusionXL(img_height=1024, img_width=1024, jit_compile=True,
+                          unet_ckpt="/path/to/unet.safetensors",
+                          vae_ckpt="/path/to/vae.safetensors",
+                          text_encoder_ckpt="/path/to/text_encoder.safetensors",
+                          text_encoder2_ckpt="/path/to/text_encoder2.safetensors")
 img = model.text_to_image(
   "a cute girl.",
   num_steps=25,

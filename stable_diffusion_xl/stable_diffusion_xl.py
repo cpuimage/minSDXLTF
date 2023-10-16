@@ -387,12 +387,7 @@ class StableDiffusionXLBase:
 
     @property
     def image_encoder(self):
-        """image_encoder returns the VAE Encoder with pretrained weights."""
-        if self._image_encoder is None:
-            self._image_encoder = ImageEncoder()
-            if self.jit_compile:
-                self._image_encoder.compile(jit_compile=True)
-        return self._image_encoder
+        pass
 
     @property
     def text_encoder_openai(self):
@@ -408,15 +403,7 @@ class StableDiffusionXLBase:
 
     @property
     def image_decoder(self):
-        """decoder returns the diffusion image decoder model with pretrained
-        weights. Can be overriden for tasks where the decoder needs to be
-        modified.
-        """
-        if self._image_decoder is None:
-            self._image_decoder = ImageDecoder(self.img_height, self.img_width)
-            if self.jit_compile:
-                self._image_decoder.compile(jit_compile=True)
-        return self._image_decoder
+        pass
 
     @property
     def tokenizer(self):
@@ -512,9 +499,16 @@ class StableDiffusionXL(StableDiffusionXLBase):
             img_height=1024,
             img_width=1024,
             jit_compile=True,
-            civitai_model=None):
+            unet_ckpt=None,
+            text_encoder_ckpt=None,
+            text_encoder2_ckpt=None,
+            vae_ckpt=None,
+    ):
         super().__init__(img_height, img_width, jit_compile)
-        self.civitai_model = civitai_model
+        self.unet_ckpt = unet_ckpt
+        self.text_encoder_ckpt = text_encoder_ckpt
+        self.text_encoder2_ckpt = text_encoder2_ckpt
+        self.vae_ckpt = vae_ckpt
 
     @property
     def text_encoder_openai(self):
@@ -523,7 +517,7 @@ class StableDiffusionXL(StableDiffusionXLBase):
         needs to be modified.
         """
         if self._text_encoder_openai is None:
-            self._text_encoder_openai = TextEncoderOpenAi(MAX_PROMPT_LENGTH)
+            self._text_encoder_openai = TextEncoderOpenAi(MAX_PROMPT_LENGTH, ckpt_path=self.text_encoder_ckpt)
             if self.jit_compile:
                 self._text_encoder_openai.compile(jit_compile=True)
         return self._text_encoder_openai
@@ -535,7 +529,7 @@ class StableDiffusionXL(StableDiffusionXLBase):
         needs to be modified.
         """
         if self._text_encoder_laion is None:
-            self._text_encoder_laion = TextEncoderLaion(MAX_PROMPT_LENGTH)
+            self._text_encoder_laion = TextEncoderLaion(MAX_PROMPT_LENGTH, ckpt_path=self.text_encoder2_ckpt)
             if self.jit_compile:
                 self._text_encoder_laion.compile(jit_compile=True)
         return self._text_encoder_laion
@@ -547,7 +541,7 @@ class StableDiffusionXL(StableDiffusionXLBase):
         needs to be modified.
         """
         if self._text_encoder_laion_proj is None:
-            self._text_encoder_laion_proj = TextEncoderLaionProj()
+            self._text_encoder_laion_proj = TextEncoderLaionProj(ckpt_path=self.text_encoder2_ckpt)
             if self.jit_compile:
                 self._text_encoder_laion_proj.compile(jit_compile=True)
         return self._text_encoder_laion_proj
@@ -560,7 +554,28 @@ class StableDiffusionXL(StableDiffusionXLBase):
         """
         if self._diffusion_model is None:
             self._diffusion_model = DiffusionXLModel(
-                self.img_height, self.img_width, ckpt_path=self.civitai_model)
+                self.img_height, self.img_width, ckpt_path=self.unet_ckpt)
             if self.jit_compile:
                 self._diffusion_model.compile(jit_compile=True)
         return self._diffusion_model
+
+    @property
+    def image_encoder(self):
+        """image_encoder returns the VAE Encoder with pretrained weights."""
+        if self._image_encoder is None:
+            self._image_encoder = ImageEncoder(ckpt_path=self.vae_ckpt)
+            if self.jit_compile:
+                self._image_encoder.compile(jit_compile=True)
+        return self._image_encoder
+
+    @property
+    def image_decoder(self):
+        """decoder returns the diffusion image decoder model with pretrained
+        weights. Can be overriden for tasks where the decoder needs to be
+        modified.
+        """
+        if self._image_decoder is None:
+            self._image_decoder = ImageDecoder(self.img_height, self.img_width, ckpt_path=self.vae_ckpt)
+            if self.jit_compile:
+                self._image_decoder.compile(jit_compile=True)
+        return self._image_decoder
