@@ -56,7 +56,11 @@ class StableDiffusionXLBase:
             batch_size=1,
             num_steps=50,
             unconditional_guidance_scale=7.5,
-            seed=None, callback=None):
+            seed=None,
+            original_size=None,
+            crops_coords_top_left=(0, 0),
+            target_size=None,
+            callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
 
         return self.generate_image(
@@ -66,7 +70,11 @@ class StableDiffusionXLBase:
             batch_size=batch_size,
             num_steps=num_steps,
             unconditional_guidance_scale=unconditional_guidance_scale,
-            seed=seed, callback=callback)
+            seed=seed,
+            original_size=original_size,
+            crops_coords_top_left=crops_coords_top_left,
+            target_size=target_size,
+            callback=callback)
 
     def image_to_image(
             self,
@@ -77,7 +85,11 @@ class StableDiffusionXLBase:
             unconditional_guidance_scale=7.5,
             seed=None,
             reference_image=None,
-            reference_image_strength=0.8, callback=None):
+            reference_image_strength=0.8,
+            original_size=None,
+            crops_coords_top_left=(0, 0),
+            target_size=None,
+            callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
         return self.generate_image(
             encoded_text,
@@ -88,7 +100,11 @@ class StableDiffusionXLBase:
             unconditional_guidance_scale=unconditional_guidance_scale,
             seed=seed,
             reference_image=reference_image,
-            reference_image_strength=reference_image_strength, callback=callback)
+            reference_image_strength=reference_image_strength,
+            original_size=original_size,
+            crops_coords_top_left=crops_coords_top_left,
+            target_size=target_size,
+            callback=callback)
 
     def inpaint(
             self,
@@ -101,7 +117,11 @@ class StableDiffusionXLBase:
             reference_image=None,
             reference_image_strength=0.8,
             inpaint_mask=None,
-            mask_blur_strength=None, callback=None):
+            mask_blur_strength=None,
+            original_size=None,
+            crops_coords_top_left=(0, 0),
+            target_size=None,
+            callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
 
         return self.generate_image(
@@ -115,7 +135,11 @@ class StableDiffusionXLBase:
             reference_image=reference_image,
             reference_image_strength=reference_image_strength,
             inpaint_mask=inpaint_mask,
-            mask_blur_strength=mask_blur_strength, callback=callback)
+            mask_blur_strength=mask_blur_strength,
+            original_size=original_size,
+            crops_coords_top_left=crops_coords_top_left,
+            target_size=target_size,
+            callback=callback)
 
     def encode_text(self, prompt):
         """Encodes a prompt into a latent text encoding.
@@ -397,6 +421,10 @@ class StableDiffusionXLBase:
 
     @property
     def text_encoder_laion(self):
+        pass
+
+    @property
+    def text_encoder_laion_proj(self):
         pass
 
     @property
