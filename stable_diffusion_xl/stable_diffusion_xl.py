@@ -249,7 +249,10 @@ class StableDiffusionXLBase:
             mask_blur_strength=None,
             reference_image=None,
             reference_image_strength=0.8,
-            callback=None):
+            callback=None,
+            original_size=None,
+            crops_coords_top_left=(0, 0),
+            target_size=None):
         """Generates an image based on encoded text.
 
         The encoding passed to this method should be derived from
@@ -337,8 +340,12 @@ class StableDiffusionXLBase:
         signal_rates, noise_rates, next_signal_rates, next_noise_rates = self._get_initial_alphas(timesteps)
         progbar = tf.keras.utils.Progbar(len(timesteps))
         iteration = 0
+        if original_size is None:
+            original_size = [self.img_height, self.img_width]
+        if target_size is None:
+            target_size = [self.img_height, self.img_width]
         add_time_ids = tf.expand_dims(
-            tf.convert_to_tensor(list([self.img_height, self.img_width] + [0, 0] + [self.img_height, self.img_width]),
+            tf.convert_to_tensor(list(list(original_size) + list(crops_coords_top_left) + list(target_size)),
                                  latent.dtype), axis=0)
         for index, timestep in list(enumerate(timesteps))[::-1]:
             latent_prev = latent  # Set aside the previous latent vector
