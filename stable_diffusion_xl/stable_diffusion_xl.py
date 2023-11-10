@@ -60,6 +60,7 @@ class StableDiffusionXLBase:
             original_size=None,
             crops_coords_top_left=(0, 0),
             target_size=None,
+            guidance_rescale=0.7,
             callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
 
@@ -74,6 +75,7 @@ class StableDiffusionXLBase:
             original_size=original_size,
             crops_coords_top_left=crops_coords_top_left,
             target_size=target_size,
+            guidance_rescale=guidance_rescale,
             callback=callback)
 
     def image_to_image(
@@ -89,6 +91,7 @@ class StableDiffusionXLBase:
             original_size=None,
             crops_coords_top_left=(0, 0),
             target_size=None,
+            guidance_rescale=0.7,
             callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
         return self.generate_image(
@@ -104,6 +107,7 @@ class StableDiffusionXLBase:
             original_size=original_size,
             crops_coords_top_left=crops_coords_top_left,
             target_size=target_size,
+            guidance_rescale=guidance_rescale,
             callback=callback)
 
     def inpaint(
@@ -121,6 +125,7 @@ class StableDiffusionXLBase:
             original_size=None,
             crops_coords_top_left=(0, 0),
             target_size=None,
+            guidance_rescale=0.7,
             callback=None):
         encoded_text, add_text_embeds = self.encode_text(prompt)
 
@@ -139,6 +144,7 @@ class StableDiffusionXLBase:
             original_size=original_size,
             crops_coords_top_left=crops_coords_top_left,
             target_size=target_size,
+            guidance_rescale=guidance_rescale,
             callback=callback)
 
     def encode_text(self, prompt):
@@ -259,6 +265,19 @@ class StableDiffusionXLBase:
         latent_mask_tensor = self.resize(input_mask_array, self.img_width // 8, self.img_height // 8)
         return np.expand_dims(input_mask_array, axis=0), np.expand_dims(latent_mask_tensor, axis=0)
 
+    def rescale_noise_cfg(self, noise_cfg, noise_pred_text, guidance_rescale=0.0, epsilon=1e-05):
+        """
+        Rescale `noise_cfg` according to `guidance_rescale`. Based on findings of [Common Diffusion Noise Schedules and
+        Sample Steps are Flawed](https://arxiv.org/abs/2305.08891). See Section 3.4
+        """
+        std_text = np.std(noise_pred_text, axis=tuple(range(1, len(noise_pred_text.shape))), keepdims=True)
+        std_cfg = np.std(noise_cfg, axis=tuple(range(1, len(noise_cfg.shape))), keepdims=True) + epsilon
+        # rescale the results from guidance (fixes overexposure)
+        noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
+        # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
+        noise_cfg = guidance_rescale * noise_pred_rescaled + (1.0 - guidance_rescale) * noise_cfg
+        return noise_cfg
+
     def generate_image(
             self,
             encoded_text,
@@ -276,6 +295,7 @@ class StableDiffusionXLBase:
             callback=None,
             original_size=None,
             crops_coords_top_left=(0, 0),
+            guidance_rescale=0.0,
             target_size=None):
         """Generates an image based on encoded text.
 
@@ -376,10 +396,13 @@ class StableDiffusionXLBase:
             time_emb = np.repeat(np.reshape(timestep, [1, -1]), batch_size, axis=0)
             unconditional_latent = self.diffusion_model.predict_on_batch(
                 [latent, time_emb, unconditional_context, add_time_ids, tf.zeros_like(add_text_embeds)])
-            latent = self.diffusion_model.predict_on_batch(
+            latent_text = self.diffusion_model.predict_on_batch(
                 [latent, time_emb, context, add_time_ids, add_text_embeds])
             latent = unconditional_latent + unconditional_guidance_scale * (
-                    latent - unconditional_latent)
+                    latent_text - unconditional_latent)
+            if guidance_rescale > 0.0:
+                # Based on 3.4. in https://arxiv.org/abs/2305.08891
+                latent = self.rescale_noise_cfg(latent, latent_text, guidance_rescale=guidance_rescale)
             pred_x0 = (latent_prev - noise_rates[index] * latent) / signal_rates[index]
             latent = (latent * next_noise_rates[index] + next_signal_rates[index] * pred_x0)
             if latent_mask_tensor is not None and init_latent is not None:
