@@ -77,6 +77,7 @@ Image.fromarray(img[0]).save("out.jpg")
     - [x] Inpainting
     - [x] Long Prompt Weighting
     - [x] CFG Rescale
+    - [x] LCM Scheduler
     - [ ] Lora
         - [ ] Merge
         - [ ] Switch
@@ -90,7 +91,7 @@ Image.fromarray(img[0]).save("out.jpg")
     - [ ] Multi-language Prompt
     - [ ] Gui
     - [ ] Cache Manager
-    - [ ] Latent Consistency Model And LCMScheduler
+    - [ ] Latent Consistency Model Converter
 
 Distributed under the MIT License. See `LICENSE` for more information.
 

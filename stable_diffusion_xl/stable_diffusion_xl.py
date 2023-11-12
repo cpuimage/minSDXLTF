@@ -23,6 +23,7 @@ from .diffusion_model import DiffusionXLModel
 from .image_decoder import ImageDecoder
 from .image_encoder import ImageEncoder
 from .long_prompt_weighting import get_weighted_text_embeddings
+from .scheduler import Scheduler
 from .text_encoder_laion import TextEncoderLaion, TextEncoderLaionProj
 from .text_encoder_openai import TextEncoderOpenAi
 
@@ -32,10 +33,10 @@ MAX_PROMPT_LENGTH = 77
 class StableDiffusionXLBase:
     """Base class for stable diffusion xl model."""
 
-    def __init__(self, img_height=1024, img_width=1024, jit_compile=False):
+    def __init__(self, img_height=1024, img_width=1024, jit_compile=False,
+                 active_lcm=False):
         self.img_height = img_height
         self.img_width = img_width
-
         # lazy initialize the component models and the tokenizer
         self._image_encoder = None
         self._text_encoder_laion = None
@@ -45,9 +46,8 @@ class StableDiffusionXLBase:
         self._image_decoder = None
         self._tokenizer = None
         self.jit_compile = jit_compile
-        self.alphas_cumprod = np.cumprod(1. - np.square(np.linspace(np.sqrt(0.00085), np.sqrt(0.012), 1000)), axis=0)
-        self.signal_rates = np.sqrt(self.alphas_cumprod)
-        self.noise_rates = np.sqrt(1. - self.alphas_cumprod)
+        self.active_lcm = active_lcm
+        self.scheduler = Scheduler(active_lcm=active_lcm)
 
     def text_to_image(
             self,
@@ -357,7 +357,8 @@ class StableDiffusionXLBase:
             if len(diffusion_noise.shape) == 3:
                 diffusion_noise = np.repeat(np.expand_dims(diffusion_noise, axis=0), batch_size, axis=0)
         # Iterative reverse diffusion stage
-        timesteps = np.linspace(0, 1000 - 1, num_steps, dtype=np.int32)
+        self.scheduler.set_timesteps(num_steps)
+        timesteps = self.scheduler.timesteps[::-1]
         init_time = None
         init_latent = None
         input_image_array = None
@@ -381,7 +382,6 @@ class StableDiffusionXLBase:
                                                     init_time=init_time,
                                                     seed=seed,
                                                     noise=diffusion_noise)
-        signal_rates, noise_rates, next_signal_rates, next_noise_rates = self._get_initial_alphas(timesteps)
         progbar = tf.keras.utils.Progbar(len(timesteps))
         iteration = 0
         if original_size is None:
@@ -394,17 +394,20 @@ class StableDiffusionXLBase:
         for index, timestep in list(enumerate(timesteps))[::-1]:
             latent_prev = latent  # Set aside the previous latent vector
             time_emb = np.repeat(np.reshape(timestep, [1, -1]), batch_size, axis=0)
-            unconditional_latent = self.diffusion_model.predict_on_batch(
-                [latent, time_emb, unconditional_context, add_time_ids, tf.zeros_like(add_text_embeds)])
-            latent_text = self.diffusion_model.predict_on_batch(
-                [latent, time_emb, context, add_time_ids, add_text_embeds])
-            latent = unconditional_latent + unconditional_guidance_scale * (
-                    latent_text - unconditional_latent)
-            if guidance_rescale > 0.0:
-                # Based on 3.4. in https://arxiv.org/abs/2305.08891
-                latent = self.rescale_noise_cfg(latent, latent_text, guidance_rescale=guidance_rescale)
-            pred_x0 = (latent_prev - noise_rates[index] * latent) / signal_rates[index]
-            latent = (latent * next_noise_rates[index] + next_signal_rates[index] * pred_x0)
+            if not self.active_lcm:
+                unconditional_latent = self.diffusion_model.predict_on_batch(
+                    [latent, time_emb, unconditional_context, add_time_ids, tf.zeros_like(add_text_embeds)])
+                latent_text = self.diffusion_model.predict_on_batch(
+                    [latent, time_emb, context, add_time_ids, add_text_embeds])
+                latent = unconditional_latent + unconditional_guidance_scale * (
+                        latent_text - unconditional_latent)
+                if guidance_rescale > 0.0:
+                    # Based on 3.4. in https://arxiv.org/abs/2305.08891
+                    latent = self.rescale_noise_cfg(latent, latent_text, guidance_rescale=guidance_rescale)
+            else:
+                latent = self.diffusion_model.predict_on_batch(
+                    [latent, time_emb, context, add_time_ids, add_text_embeds])
+            latent = self.scheduler.step(latent, timestep, latent_prev)
             if latent_mask_tensor is not None and init_latent is not None:
                 latent_orgin = self._get_initial_diffusion_latent(batch_size=batch_size,
                                                                   init_latent=init_latent,
@@ -468,13 +471,6 @@ class StableDiffusionXLBase:
             self._tokenizer = SimpleTokenizer()
         return self._tokenizer
 
-    def _get_initial_alphas(self, timesteps):
-        signal_rates = [self.signal_rates[t] for t in timesteps]
-        noise_rates = [self.noise_rates[t] for t in timesteps]
-        next_signal_rates = [1.0] + signal_rates[:-1]
-        next_noise_rates = [0.0] + noise_rates[:-1]
-        return signal_rates, noise_rates, next_signal_rates, next_noise_rates
-
     def _get_initial_diffusion_noise(self, batch_size, seed):
         if seed is not None:
             try:
@@ -497,8 +493,8 @@ class StableDiffusionXLBase:
         if init_latent is None:
             latent = noise
         else:
-            latent = self.signal_rates[init_time] * np.repeat(init_latent, batch_size, axis=0) + self.noise_rates[
-                init_time] * noise
+            latent = self.scheduler.signal_rates[init_time] * np.repeat(init_latent, batch_size, axis=0) + \
+                     self.scheduler.noise_rates[init_time] * noise
         return latent
 
     @staticmethod
