@@ -556,8 +556,9 @@ class StableDiffusionXL(StableDiffusionXLBase):
             text_encoder_ckpt=None,
             text_encoder2_ckpt=None,
             vae_ckpt=None,
+            active_lcm=False,
     ):
-        super().__init__(img_height, img_width, jit_compile)
+        super().__init__(img_height, img_width, jit_compile, active_lcm)
         self.unet_ckpt = unet_ckpt
         self.text_encoder_ckpt = text_encoder_ckpt
         self.text_encoder2_ckpt = text_encoder2_ckpt
