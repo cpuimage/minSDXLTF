@@ -71,6 +71,6 @@ class TextEncoderOpenAi(tf.keras.Model):
                 return
             else:
                 origin = ckpt_path
-        model_weights_fpath = tf.keras.utils.get_file(origin=origin)
+        model_weights_fpath = tf.keras.utils.get_file(origin=origin, fname="text_encoder.fp16.safetensors")
         if os.path.exists(model_weights_fpath):
             load_weights_from_file(self, model_weights_fpath, ckpt_mapping=ckpt_mapping, lora_dict=lora_dict)
