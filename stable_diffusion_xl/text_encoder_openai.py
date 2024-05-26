@@ -13,23 +13,22 @@
 # limitations under the License.
 import os
 
-import tensorflow as tf
-
+from keras import layers, utils, Model, ops
 from stable_diffusion_xl.ckpt_loader import load_weights_from_file
 from stable_diffusion_xl.layers import CLIPEmbedding, CLIPEncoderLayer
 
 
 def quick_gelu(x):
-    return x * tf.sigmoid(x * 1.702)
+    return x * ops.sigmoid(x * 1.702)
 
 
-class TextEncoderOpenAi(tf.keras.Model):
+class TextEncoderOpenAi(Model):
     def __init__(self, max_length=77, embed_dim=768, vocab_size=49408, num_heads=12, num_layers=12, clip_skip=-2,
                  final_layer_norm=False,
                  name=None,
                  ckpt_path=None, lora_dict=None):
-        tokens = tf.keras.layers.Input(shape=(max_length,), dtype="int32", name="tokens")
-        positions = tf.keras.layers.Input(shape=(max_length,), dtype="int32", name="positions")
+        tokens = layers.Input(shape=(max_length,), dtype="int32", name="tokens")
+        positions = layers.Input(shape=(max_length,), dtype="int32", name="positions")
         clip_emb = CLIPEmbedding(vocab_size, embed_dim, max_length, name="embeddings")([tokens, positions])
         x = clip_emb
         out = []
@@ -39,7 +38,7 @@ class TextEncoderOpenAi(tf.keras.Model):
             out.append(x)
         embedded = out[clip_skip]
         if final_layer_norm:
-            embedded = tf.keras.layers.LayerNormalization(epsilon=1e-5, name="text_model.final_layer_norm")(embedded)
+            embedded = layers.LayerNormalization(epsilon=1e-5, name="text_model.final_layer_norm")(embedded)
         super().__init__([tokens, positions], embedded, name=name)
         origin = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/text_encoder/model.fp16.safetensors"
         ckpt_mapping = [('text_model.embeddings.token_embedding.weight', None),
@@ -71,6 +70,6 @@ class TextEncoderOpenAi(tf.keras.Model):
                 return
             else:
                 origin = ckpt_path
-        model_weights_fpath = tf.keras.utils.get_file(origin=origin, fname="text_encoder.fp16.safetensors")
+        model_weights_fpath = utils.get_file(origin=origin, fname="text_encoder.fp16.safetensors")
         if os.path.exists(model_weights_fpath):
             load_weights_from_file(self, model_weights_fpath, ckpt_mapping=ckpt_mapping, lora_dict=lora_dict)

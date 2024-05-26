@@ -14,8 +14,8 @@
 """Keras implementation of StableDiffusionXL."""
 
 import numpy as np
-import tensorflow as tf
 from PIL import Image
+from keras import utils, ops, random
 from scipy.ndimage import correlate1d
 
 from .clip_tokenizer import SimpleTokenizer
@@ -161,7 +161,7 @@ class StableDiffusionXLBase:
         Example:
 
         ```python
-        from keras_cv.models import StableDiffusion
+        from stable_diffusion_xl import StableDiffusionXL
 
         model = StableDiffusionXL(img_height=1024, img_width=1024, jit_compile=True)
         encoded_text  = model.encode_text("Tacos at dawn")
@@ -382,21 +382,21 @@ class StableDiffusionXLBase:
                                                     init_time=init_time,
                                                     seed=seed,
                                                     noise=diffusion_noise)
-        progbar = tf.keras.utils.Progbar(len(timesteps))
+        progbar = utils.Progbar(len(timesteps))
         iteration = 0
         if original_size is None:
             original_size = [self.img_height, self.img_width]
         if target_size is None:
             target_size = [self.img_height, self.img_width]
-        add_time_ids = tf.expand_dims(
-            tf.convert_to_tensor(list(list(original_size) + list(crops_coords_top_left) + list(target_size)),
-                                 latent.dtype), axis=0)
+        add_time_ids = ops.expand_dims(
+            ops.convert_to_tensor(list(list(original_size) + list(crops_coords_top_left) + list(target_size)),
+                                  latent.dtype), axis=0)
         for index, timestep in list(enumerate(timesteps))[::-1]:
             latent_prev = latent  # Set aside the previous latent vector
             time_emb = np.repeat(np.reshape(timestep, [1, -1]), batch_size, axis=0)
             if unconditional_guidance_scale > 0.0:
                 unconditional_latent = self.diffusion_model.predict_on_batch(
-                    [latent, time_emb, unconditional_context, add_time_ids, tf.zeros_like(add_text_embeds)])
+                    [latent, time_emb, unconditional_context, add_time_ids, ops.zeros_like(add_text_embeds)])
                 latent_text = self.diffusion_model.predict_on_batch(
                     [latent, time_emb, context, add_time_ids, add_text_embeds])
                 latent = unconditional_latent + unconditional_guidance_scale * (
@@ -472,19 +472,8 @@ class StableDiffusionXLBase:
         return self._tokenizer
 
     def _get_initial_diffusion_noise(self, batch_size, seed):
-        if seed is not None:
-            try:
-                seed = int(seed)
-            except:
-                seed = None
-            return tf.random.stateless_normal(
-                (batch_size, self.img_height // 8, self.img_width // 8, 4),
-                seed=[seed, seed],
-            )
-        else:
-            return tf.random.normal(
-                (batch_size, self.img_height // 8, self.img_width // 8, 4)
-            )
+        return random.normal(
+            (batch_size, self.img_height // 8, self.img_width // 8, 4), seed=seed)
 
     def _get_initial_diffusion_latent(self, batch_size, init_latent=None, init_time=None, seed=None,
                                       noise=None):
