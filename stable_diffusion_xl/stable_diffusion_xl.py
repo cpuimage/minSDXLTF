@@ -34,7 +34,7 @@ class StableDiffusionXLBase:
     """Base class for stable diffusion xl model."""
 
     def __init__(self, img_height=1024, img_width=1024, jit_compile=False,
-                 active_lcm=False):
+                 active_tcd=False):
         self.img_height = img_height
         self.img_width = img_width
         # lazy initialize the component models and the tokenizer
@@ -46,8 +46,8 @@ class StableDiffusionXLBase:
         self._image_decoder = None
         self._tokenizer = None
         self.jit_compile = jit_compile
-        self.active_lcm = active_lcm
-        self.scheduler = Scheduler(active_lcm=active_lcm)
+        self.active_tcd = active_tcd
+        self.scheduler = Scheduler(active_tcd=active_tcd)
 
     def text_to_image(
             self,

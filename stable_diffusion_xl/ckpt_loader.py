@@ -3903,7 +3903,7 @@ def load_weights_from_file(self, ckpt_path, ckpt_mapping, key_mapping=None, lora
     module_weights = []
     keys = state_dict.keys()
     if lora_dict is not None:
-        lora_keys = lora_dict.keys()
+        lora_keys = list(lora_dict.keys())
     else:
         lora_keys = []
     lora_count = len(lora_keys)
@@ -3929,6 +3929,10 @@ def load_weights_from_file(self, ckpt_path, ckpt_mapping, key_mapping=None, lora
                 if lora_w is not None:
                     w = w + lora_w
                     lora_idx += 1
+                    if key in lora_keys:
+                        lora_keys.pop(lora_keys.index(key))
+                    else:
+                        lora_keys.pop(lora_keys.index(key_mapping.get(key)))
             if perm is not None:
                 w = np.transpose(w, perm)
         if weights[i].shape != w.shape:
@@ -3939,5 +3943,6 @@ def load_weights_from_file(self, ckpt_path, ckpt_mapping, key_mapping=None, lora
             print("Apply {} lora weights".format(lora_count))
         else:
             print("Apply {}/{} lora weights".format(lora_idx, lora_count))
+            print("Failed to apply lora list: {}".format(lora_keys))
     self.set_weights(module_weights)
     print("Loaded %d weights for %s" % (len(module_weights), self.name))

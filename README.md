@@ -77,7 +77,8 @@ Image.fromarray(img[0]).save("out.jpg")
     - [x] Inpainting
     - [x] Long Prompt Weighting
     - [x] CFG Rescale
-    - [x] LCM Scheduler
+    - [x] ~~LCM Scheduler~~
+    - [x] TCD Scheduler
     - [ ] Lora
         - [ ] Merge
         - [ ] Switch
