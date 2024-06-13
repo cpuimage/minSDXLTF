@@ -1,6 +1,6 @@
 # minSDXLTF
 
-Stable Diffusion XL Inference With PyTorch Weights And More Features Like Stable Diffusion Web UI In Keras/TensorFlow
+Stable Diffusion XL Inference With PyTorch Weights And More Features Like Stable Diffusion Web UI In Keras 3.x
 
 ## Why do this?
 
